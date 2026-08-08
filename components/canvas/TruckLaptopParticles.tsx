@@ -1,17 +1,23 @@
 "use client";
 
-import { useEffect, useMemo, useRef } from "react";
-import { useFrame, invalidate } from "@react-three/fiber";
+import { useMemo, useRef } from "react";
+import { useFrame, useThree, invalidate } from "@react-three/fiber";
 import * as THREE from "three";
 import { useSiteStore } from "@/lib/store";
 import { getPhaseInfo } from "@/lib/truckLaptopPhases";
 
-const COUNT = 120;
+const COUNT_DESKTOP = 120;
+const COUNT_MOBILE = 60;
 
 const GREY = new THREE.Color("#444444");
 const RED = new THREE.Color("#FF2A2A");
 const BLUE = new THREE.Color("#0066FF");
 const WHITE = new THREE.Color("#F5F5F0");
+
+function smoothstep(edge0: number, edge1: number, x: number) {
+  const t = THREE.MathUtils.clamp((x - edge0) / (edge1 - edge0), 0, 1);
+  return t * t * (3 - 2 * t);
+}
 
 interface Particle {
   origin: THREE.Vector3;
@@ -20,6 +26,10 @@ interface Particle {
   outDir: THREE.Vector3;
   outDistance: number;
   spinSeed: number;
+  // Small per-particle head start (phase-4-local, 0-0.22) so the reassemble
+  // reads as particles gracefully flowing in at slightly different moments
+  // rather than the whole cloud snapping to the laptop in lockstep.
+  convergeDelay: number;
 }
 
 /** Random point inside the truck's approximate footprint (cab + trailer). */
@@ -57,27 +67,20 @@ function sampleLaptopPoint(): THREE.Vector3 {
 }
 
 /**
- * 120 instanced-mesh particles that dissolve the truck outward (phase 3)
- * and converge into the laptop's silhouette (phase 4), shifting color from
- * grey → red → electric blue → white along the way.
+ * Instanced-mesh particles (120 desktop / 60 mobile) that dissolve the truck
+ * outward (phase 3) and converge into the laptop's silhouette (phase 4),
+ * shifting color from grey → red → electric blue → white along the way.
  */
 export default function TruckLaptopParticles() {
   const meshRef = useRef<THREE.InstancedMesh>(null);
   const matRef = useRef<THREE.MeshStandardMaterial>(null);
   const dummy = useMemo(() => new THREE.Object3D(), []);
-
-  useEffect(() => {
-    const geometry = meshRef.current?.geometry;
-    console.log("[TruckLaptopParticles] geometry.type:", geometry?.type); // expect "SphereGeometry"
-    if (geometry && geometry.type !== "SphereGeometry") {
-      geometry.dispose();
-      meshRef.current!.geometry = new THREE.SphereGeometry(0.06, 5, 5);
-      console.log("[TruckLaptopParticles] forced geometry replacement to SphereGeometry");
-    }
-  }, []);
+  const viewportWidth = useThree((state) => state.size.width);
+  const isMobile = viewportWidth < 768;
+  const count = isMobile ? COUNT_MOBILE : COUNT_DESKTOP;
 
   const particles = useMemo<Particle[]>(() => {
-    return Array.from({ length: COUNT }, () => {
+    return Array.from({ length: count }, () => {
       const origin = sampleTruckPoint();
       const target = sampleLaptopPoint();
       const outDir = origin
@@ -97,11 +100,20 @@ export default function TruckLaptopParticles() {
         target,
         scattered: new THREE.Vector3(),
         outDir,
-        outDistance: THREE.MathUtils.randFloat(1.5, 4.5),
+        // Was a flat randFloat(1.5, 4.5) — on a narrow portrait viewport
+        // that absolute scatter distance covers proportionally far more of
+        // the (much narrower) visible frustum than on desktop, reading as a
+        // full-screen swarm. Scaled down for mobile only; desktop keeps the
+        // original range exactly.
+        outDistance: THREE.MathUtils.randFloat(
+          isMobile ? 0.9 : 1.5,
+          isMobile ? 2.7 : 4.5,
+        ),
         spinSeed: Math.random() * Math.PI * 2,
+        convergeDelay: THREE.MathUtils.randFloat(0, 0.22),
       };
     });
-  }, []);
+  }, [count, isMobile]);
 
   useFrame((state) => {
     const mesh = meshRef.current;
@@ -119,10 +131,12 @@ export default function TruckLaptopParticles() {
     let colorNow = GREY;
 
     if (phase === 3) {
-      // Dissolve: fly outward from origin, ease-out.
+      // Dissolve: fly outward from origin, ease-out, shrinking slightly as
+      // they disperse — a "mechanical particles disperse, become smaller"
+      // read rather than a constant-size cloud.
       const ease = 1 - Math.pow(1 - t, 3);
       colorNow = GREY.clone().lerp(RED, t);
-      for (let i = 0; i < COUNT; i++) {
+      for (let i = 0; i < count; i++) {
         const p = particles[i];
         const jitter =
           Math.sin(state.clock.elapsedTime * 2 + p.spinSeed) * 0.05 * t;
@@ -131,33 +145,52 @@ export default function TruckLaptopParticles() {
           .multiplyScalar(p.outDistance * ease + jitter)
           .add(p.origin);
         dummy.position.copy(p.scattered);
-        dummy.scale.setScalar(1);
+        dummy.scale.setScalar(THREE.MathUtils.lerp(1, 0.55, ease));
         dummy.updateMatrix();
         mesh.setMatrixAt(i, dummy.matrix);
         mesh.setColorAt(i, colorNow);
       }
     } else if (phase === 4) {
       // Reassemble: converge from the phase-3 scattered cloud to the laptop.
-      const ease = t * t * (3 - 2 * t); // smoothstep
+      // Color sweeps together on the shared `t` (unchanged) so the palette
+      // transition stays a clean, unified sweep — only each particle's own
+      // position/scale ease is staggered by convergeDelay, so the cloud
+      // flows in gradually rather than snapping into place as one mass.
       colorNow =
         t < 0.5 ? RED.clone().lerp(BLUE, t / 0.5) : BLUE.clone().lerp(WHITE, (t - 0.5) / 0.5);
-      for (let i = 0; i < COUNT; i++) {
+      for (let i = 0; i < count; i++) {
         const p = particles[i];
+        const localT = THREE.MathUtils.clamp(
+          (t - p.convergeDelay) / (1 - p.convergeDelay),
+          0,
+          1,
+        );
+        const ease = localT * localT * (3 - 2 * localT); // smoothstep
         const fromPos = p.outDir
           .clone()
           .multiplyScalar(p.outDistance)
           .add(p.origin);
         dummy.position.lerpVectors(fromPos, p.target, ease);
-        dummy.scale.setScalar(THREE.MathUtils.lerp(1, 0.7, ease));
+        // Continues the phase-3 shrink (which ends at 0.55) down slightly
+        // further, then gently grows back to 0.7 as each particle "settles"
+        // into the laptop's form — matches phase 5's resting scale (0.7 *
+        // visibility) at ease=1, so there's no size pop across the boundary.
+        dummy.scale.setScalar(THREE.MathUtils.lerp(0.55, 0.7, ease));
         dummy.updateMatrix();
         mesh.setMatrixAt(i, dummy.matrix);
         mesh.setColorAt(i, colorNow);
       }
     } else if (phase === 5) {
-      // Reveal: the solid laptop has taken over — fade the dust out.
-      visibility = 1 - t;
+      // Reveal: the laptop snaps to full visibility/scale the instant this
+      // phase starts (see Laptop.tsx), but these particles sit right on its
+      // screen/base silhouette (sampleLaptopPoint()) — fading them out
+      // linearly across the whole phase left a visible white cloud
+      // lingering over an already-fully-framed laptop. Eased so opacity
+      // (and scale, tied to it below) collapses to ~0 well before the
+      // phase ends, instead of exactly at its end.
+      visibility = 1 - smoothstep(0, 0.45, t);
       colorNow = WHITE;
-      for (let i = 0; i < COUNT; i++) {
+      for (let i = 0; i < count; i++) {
         const p = particles[i];
         dummy.position.copy(p.target);
         dummy.scale.setScalar(0.7 * visibility);
@@ -180,7 +213,7 @@ export default function TruckLaptopParticles() {
   });
 
   return (
-    <instancedMesh ref={meshRef} args={[undefined, undefined, COUNT]}>
+    <instancedMesh ref={meshRef} args={[undefined, undefined, count]}>
       <sphereGeometry args={[0.06, 5, 5]} />
       {/* Per-instance tint still comes from setColorAt (grey → red → blue →
           white); emissive adds the self-lit glow so particles read as

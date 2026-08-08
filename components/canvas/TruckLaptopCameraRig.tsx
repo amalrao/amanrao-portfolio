@@ -71,16 +71,18 @@ export default function TruckLaptopCameraRig() {
         case 1: {
           // Truck drives in from x=-15 toward x=0 (see Truck.tsx) — hold a
           // fixed, centered framing so it stays clearly in view the whole
-          // approach instead of panning off with it.
-          targetPos.set(0, 3, 12);
-          targetLook.set(0, 0, 0);
+          // approach instead of panning off with it. Pulled back and raised
+          // versus the original (0,3,12)/(0,0,0) framing so the truck's roof
+          // clears the fixed navbar with margin instead of clipping behind it.
+          targetPos.set(0, 3.8, 14.5);
+          targetLook.set(0, -0.3, 0);
           break;
         }
         case 2: {
           // Truck stopped — same fixed framing as phase 1, so there's no
           // camera jump at the moment it comes to a stop.
-          targetPos.set(0, 3, 12);
-          targetLook.set(0, 0, 0);
+          targetPos.set(0, 3.8, 14.5);
+          targetLook.set(0, -0.3, 0);
           break;
         }
         case 3: {

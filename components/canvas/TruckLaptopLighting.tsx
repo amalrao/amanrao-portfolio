@@ -9,6 +9,9 @@ import { getPhaseInfo } from "@/lib/truckLaptopPhases";
 
 const { globeEnd: VEHICLE_START, vehicleEnd: VEHICLE_END } = SCENE_TRANSITIONS;
 const EXIT_FADE_WIDTH = 0.1;
+// Was 4 — a subtle bump so the laptop (now ~25% larger, see Laptop.tsx)
+// reads more clearly against the dark background during reassembly/reveal.
+const LAPTOP_BLUE_INTENSITY = 5;
 
 /**
  * Dedicated, phase-driven lighting for the truck→laptop cinematic scene:
@@ -75,24 +78,29 @@ export default function TruckLaptopLighting() {
     }
 
     if (phase === 4) {
-      blue.intensity = THREE.MathUtils.lerp(0, 4, t);
+      blue.intensity = THREE.MathUtils.lerp(0, LAPTOP_BLUE_INTENSITY, t);
     } else if (phase === 5) {
-      blue.intensity = 4;
+      blue.intensity = LAPTOP_BLUE_INTENSITY;
     } else if (scrollProgress >= VEHICLE_END) {
       const fadeOutT = THREE.MathUtils.clamp(
         (scrollProgress - VEHICLE_END) / EXIT_FADE_WIDTH,
         0,
         1,
       );
-      blue.intensity = 4 * (1 - fadeOutT);
+      blue.intensity = LAPTOP_BLUE_INTENSITY * (1 - fadeOutT);
     } else {
       blue.intensity = 0;
     }
 
     // Phase 3's pulse and phase 4's flash are driven by state.clock, not
-    // just scrollProgress, so they need continuous frames while active —
-    // not just the one frame the scroll handler's invalidate() already got us.
-    invalidate();
+    // just scrollProgress, so they need continuous frames while active.
+    // Every other phase here (1, 2, 5, and the post-scene fade) only sets
+    // intensities as pure functions of scrollProgress — the one frame the
+    // scroll handler's own invalidate() already scheduled is enough, so we
+    // don't force continuous rendering for those.
+    if (phase === 3 || phase === 4) {
+      invalidate();
+    }
   });
 
   return (

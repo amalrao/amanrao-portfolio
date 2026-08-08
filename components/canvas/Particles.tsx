@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useRef } from "react";
-import { useFrame, invalidate } from "@react-three/fiber";
+import { useFrame, useThree, invalidate } from "@react-three/fiber";
 import * as THREE from "three";
 import { COLORS, SCENE_TRANSITIONS } from "@/lib/constants";
 import { useSiteStore } from "@/lib/store";
@@ -18,10 +18,12 @@ interface ParticlesProps {
 export default function Particles({ count = 200, radius = 12 }: ParticlesProps) {
   const pointsRef = useRef<THREE.Points>(null);
   const materialRef = useRef<THREE.PointsMaterial>(null);
+  const viewportWidth = useThree((state) => state.size.width);
+  const effectiveCount = viewportWidth < 768 ? Math.min(count, 100) : count;
 
   const positions = useMemo(() => {
-    const array = new Float32Array(count * 3);
-    for (let i = 0; i < count; i++) {
+    const array = new Float32Array(effectiveCount * 3);
+    for (let i = 0; i < effectiveCount; i++) {
       const r = radius * Math.cbrt(Math.random());
       const theta = Math.random() * Math.PI * 2;
       const phi = Math.acos(2 * Math.random() - 1);
@@ -31,7 +33,7 @@ export default function Particles({ count = 200, radius = 12 }: ParticlesProps) 
       array[i * 3 + 2] = r * Math.cos(phi);
     }
     return array;
-  }, [count, radius]);
+  }, [effectiveCount, radius]);
 
   useFrame((_, delta) => {
     const points = pointsRef.current;

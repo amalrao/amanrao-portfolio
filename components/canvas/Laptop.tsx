@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef } from "react";
-import { useFrame, invalidate } from "@react-three/fiber";
+import { useFrame, useThree, invalidate } from "@react-three/fiber";
 import { useGLTF } from "@react-three/drei";
 import * as THREE from "three";
 import { SCENE_TRANSITIONS } from "@/lib/constants";
@@ -22,15 +22,30 @@ const REVEAL_START = 0.41;
 const EXIT_FADE_WIDTH = 0.03;
 
 const EMERGE_SCALE = 0.15; // starting scale while emerging from the particle cloud's center
-const SETTLED_SCALE = 1.4;
+// Was 1.75 — still slightly underpowered next to the truck. 1.95 is a
+// further ~11% bump (within the requested 10-15% range) to the settled size
+// only; EMERGE_SCALE and the emerge timing are untouched, so the reveal
+// still grows from the same starting point over the same phase window,
+// just arriving slightly larger. Camera framing (TruckLaptopCameraRig.tsx)
+// intentionally left alone.
+const SETTLED_SCALE = 1.95;
+// Mobile-only settled scale (viewportWidth < 768, see isMobile below) —
+// SETTLED_SCALE above is untouched and still drives desktop exactly as
+// before. The camera (TruckLaptopCameraRig.tsx, unchanged) already looks
+// toward the laptop's own position during the reveal, but its fixed FOV
+// still yields a much narrower horizontal frustum on a portrait aspect
+// ratio, so the desktop settled size would crowd the mobile frame with
+// little margin. 1.05 keeps the laptop comfortably inside frame with room
+// around it while staying clearly the dominant object.
+const MOBILE_SETTLED_SCALE = 1.05;
 
 // laptop.glb measures ~0.5 units wide at native scale (it's modeled close
-// to real-world meters). 7x on top of SETTLED_SCALE(1.4) lands at ~4.9
-// units wide once fully revealed, matching the old procedural laptop's
-// rendered size. The model is already posed screen-up/open (confirmed by
-// inspecting laptopdisplay_LP's bounding box — it's tall, not flat), so
-// unlike the primitive version there's no separate hinge-open animation;
-// only the scale-based emerge remains.
+// to real-world meters). 7x on top of SETTLED_SCALE lands at ~6.8 units
+// wide once fully revealed (was ~6.1 at the prior SETTLED_SCALE=1.75). The
+// model is already posed screen-up/open (confirmed by inspecting
+// laptopdisplay_LP's bounding box — it's tall, not flat), so unlike the
+// primitive version there's no separate hinge-open animation; only the
+// scale-based emerge remains.
 const LAPTOP_SCALE = 7;
 // Unverified rotation — the model's "facing" convention wasn't confirmed
 // by inspection. Start here and adjust after a visual check.
@@ -58,7 +73,10 @@ export default function Laptop() {
   const materialsRef = useRef<THREE.MeshStandardMaterial[]>([]);
   const screenMatRef = useRef<THREE.MeshStandardMaterial | null>(null);
 
-  const { scene: laptopScene } = useGLTF("/models/laptop.glb");
+  const viewportWidth = useThree((state) => state.size.width);
+  const isMobile = viewportWidth < 768;
+
+  const { scene: laptopScene } = useGLTF("/models/laptop-compressed.glb");
 
   const { canvas, ctx, texture } = useMemo(() => createCodeCanvas(), []);
   const codeOffset = useRef(0);
@@ -162,8 +180,9 @@ export default function Laptop() {
     }
 
     group.visible = visibility > 0.01;
+    const settledScale = isMobile ? MOBILE_SETTLED_SCALE : SETTLED_SCALE;
     group.scale.setScalar(
-      THREE.MathUtils.lerp(EMERGE_SCALE, SETTLED_SCALE, visibility),
+      THREE.MathUtils.lerp(EMERGE_SCALE, settledScale, visibility),
     );
 
     // Gentle float + rotation once fully revealed.
@@ -212,4 +231,4 @@ export default function Laptop() {
   );
 }
 
-useGLTF.preload("/models/laptop.glb");
+useGLTF.preload("/models/laptop-compressed.glb");

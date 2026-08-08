@@ -110,7 +110,7 @@ export default function Navbar() {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.3 }}
-            className="fixed inset-0 z-[105] flex flex-col items-center justify-center gap-8 bg-background"
+            className="fixed inset-0 z-[105] flex flex-col items-center justify-center gap-6 bg-background px-6 py-12"
           >
             {NAV_LINKS.map((link, i) => (
               <motion.a
@@ -120,7 +120,7 @@ export default function Navbar() {
                 initial={{ opacity: 0, y: 24 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.5, delay: 0.1 + i * 0.08 }}
-                className="font-display text-[64px] font-bold leading-none text-white"
+                className="font-display text-[48px] font-bold leading-none text-white"
               >
                 {link.label}
               </motion.a>

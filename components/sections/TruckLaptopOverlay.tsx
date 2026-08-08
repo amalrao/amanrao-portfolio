@@ -7,14 +7,20 @@ interface TextBlock {
   eyebrow?: string;
   headline: string[];
   small?: string;
-  size?: number;
+  // CSS length/clamp() string rather than a bare number — phases 1 and 5
+  // each hold a single long line of copy with no per-viewport break, so a
+  // fixed desktop pixel size (the old 32/48) wrapped awkwardly on narrow
+  // phones. clamp()'s own upper bound reproduces the exact old desktop
+  // value once the viewport is wide enough for the vw term to exceed it,
+  // so desktop is unaffected; only narrow viewports get the smaller end.
+  size?: string;
 }
 
 const PHASE_TEXT: Record<number, TextBlock> = {
   1: {
     headline: ["started with engines."],
     small: "BTech — 2023",
-    size: 32,
+    size: "clamp(22px, 7vw, 32px)",
   },
   2: {
     eyebrow: "WHERE IT STARTED",
@@ -23,7 +29,7 @@ const PHASE_TEXT: Record<number, TextBlock> = {
   5: {
     headline: ["now i write code."],
     small: "full stack · data · python",
-    size: 48,
+    size: "clamp(24px, 8vw, 48px)",
   },
 };
 

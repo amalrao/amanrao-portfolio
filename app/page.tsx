@@ -11,6 +11,7 @@ import Footer from "@/components/ui/Footer";
 import Hero from "@/components/sections/Hero";
 import TruckLaptopOverlay from "@/components/sections/TruckLaptopOverlay";
 import About from "@/components/sections/About";
+import Experience from "@/components/sections/Experience";
 import Services from "@/components/sections/Services";
 import Projects from "@/components/sections/Projects";
 import Testimonial from "@/components/sections/Testimonial";
@@ -51,6 +52,7 @@ export default function Home() {
         <div aria-hidden className="h-[150vh]" />
         <Services />
         <About />
+        <Experience />
         <Projects />
         <Testimonial />
         <CTA />

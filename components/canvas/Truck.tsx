@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useRef } from "react";
-import { useFrame, invalidate } from "@react-three/fiber";
+import { useFrame, useThree, invalidate } from "@react-three/fiber";
 import { useGLTF } from "@react-three/drei";
 import * as THREE from "three";
 import { SCENE_TRANSITIONS } from "@/lib/constants";
@@ -32,6 +32,16 @@ const DRIVE_ROTATION_Y = (15 * Math.PI) / 180;
 // (on top of the group's own 0.85) restores the intended ~9-unit length:
 // 5.4 * 2 * 0.85 ≈ 9.2.
 const CAR_SCALE: [number, number, number] = [2, 2, 2];
+
+// Mobile-only group scale (viewportWidth < 768, see isMobile below) —
+// desktop keeps DESKTOP_GROUP_SCALE (the original [0.85,0.85,0.85])
+// unconditionally. The camera (TruckLaptopCameraRig.tsx) is fixed/unchanged
+// for mobile, so on a narrow portrait aspect ratio its horizontal FOV is
+// much narrower than desktop's; shrinking the truck itself is the only
+// lever available to keep its full silhouette on screen with room to
+// spare, without touching the shared camera.
+const DESKTOP_GROUP_SCALE: [number, number, number] = [0.85, 0.85, 0.85];
+const MOBILE_GROUP_SCALE: [number, number, number] = [0.4, 0.4, 0.4];
 
 const EXHAUST_ORIGIN = new THREE.Vector3(0.5, 1.1, 0.4);
 const EXHAUST_COUNT = 12;
@@ -83,7 +93,10 @@ export default function Truck() {
   const windowMatRef = useRef<THREE.MeshStandardMaterial | null>(null);
   const wheelRotation = useRef(0);
 
-  const { scene: carScene } = useGLTF("/models/car.glb");
+  const viewportWidth = useThree((state) => state.size.width);
+  const isMobile = viewportWidth < 768;
+
+  const { scene: carScene } = useGLTF("/models/car-compressed.glb");
 
   const truck = useMemo(() => {
     const clonedScene = carScene.clone(true);
@@ -217,7 +230,7 @@ export default function Truck() {
     <group
       ref={groupRef}
       position={[-OFFSCREEN_X, TRUCK_Y, 0]}
-      scale={[0.85, 0.85, 0.85]}
+      scale={isMobile ? MOBILE_GROUP_SCALE : DESKTOP_GROUP_SCALE}
     >
       {truck && <primitive object={truck} scale={CAR_SCALE} />}
 
@@ -234,4 +247,4 @@ export default function Truck() {
   );
 }
 
-useGLTF.preload("/models/car.glb");
+useGLTF.preload("/models/car-compressed.glb");

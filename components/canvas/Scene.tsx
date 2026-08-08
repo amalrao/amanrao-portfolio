@@ -1,7 +1,7 @@
 "use client";
 
-import { Suspense } from "react";
-import { Canvas } from "@react-three/fiber";
+import { Suspense, useEffect } from "react";
+import { Canvas, useThree } from "@react-three/fiber";
 import { COLORS } from "@/lib/constants";
 import Truck from "./Truck";
 import Laptop from "./Laptop";
@@ -13,6 +13,18 @@ import TruckLaptopParticles from "./TruckLaptopParticles";
 import TruckLaptopCameraRig from "./TruckLaptopCameraRig";
 import TruckLaptopLighting from "./TruckLaptopLighting";
 import TruckPhaseReporter from "./TruckPhaseReporter";
+
+/** Caps the renderer's device pixel ratio on small screens so mobile GPUs
+ *  aren't pushed to the same effective resolution as desktop. */
+function MobilePixelRatio() {
+  const gl = useThree((state) => state.gl);
+  useEffect(() => {
+    if (window.innerWidth < 768) {
+      gl.setPixelRatio(1);
+    }
+  }, [gl]);
+  return null;
+}
 
 export default function Scene() {
   return (
@@ -34,13 +46,24 @@ export default function Scene() {
       />
       <pointLight position={[-3, -1, -2]} intensity={2} color={COLORS.accent} />
 
+      <MobilePixelRatio />
+
       <Suspense fallback={null}>
         <Particles />
         <RoadGrid />
         <Truck />
-        <Laptop />
+        {/* Own Suspense boundary: the laptop model shouldn't hold up the
+            truck/globe/dashboard — which appear earlier in the cinematic
+            and don't depend on it — just because it's still loading. */}
+        <Suspense fallback={null}>
+          <Laptop />
+        </Suspense>
         <TruckLaptopParticles />
-        <Dashboard position={[2.6, -0.3, -1]} />
+        {/* Off to the laptop's opposite side and pushed back in z — the
+            laptop (components/canvas/Laptop.tsx) renders ~4.9 units wide
+            centered on x=2.5, so this keeps the digital-system visual
+            clearly peripheral instead of overlapping its silhouette. */}
+        <Dashboard position={[-2.2, 0.4, -2.5]} />
         <Globe />
         <TruckLaptopLighting />
       </Suspense>
