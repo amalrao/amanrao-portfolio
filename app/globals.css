@@ -1,26 +1,90 @@
-@import "tailwindcss";
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --bg: #0d1117;
+  --surface: #161b22;
+  --border: #30363d;
+  --green: #00ff85;
+  --green-dim: rgba(0, 255, 133, 0.08);
+  --white: #e6edf3;
+  --muted: #8b949e;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+::selection {
+  background: var(--green);
+  color: var(--bg);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+::-webkit-scrollbar {
+  width: 3px;
+}
+::-webkit-scrollbar-track {
+  background: var(--bg);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--green);
+}
+
+/* Nav links jump via native #hash anchoring now that Lenis is gone — this
+   keeps that jump smooth. Wheel/trackpad scrolling is untouched by this
+   property; it only applies to anchor-link and programmatic scrolls. */
+html {
+  scroll-behavior: smooth;
+}
+
+html,
+body {
+  overflow-x: hidden;
+  max-width: 100vw;
+}
+
+* {
+  box-sizing: border-box;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  color: var(--white);
+  background: var(--bg);
+  font-family: var(--font-sans), sans-serif;
+}
+
+/* `cursor` inherits by default, but links/buttons/inputs carry their own
+   UA-stylesheet cursor (e.g. pointer) that wins over the inherited value —
+   so body alone isn't enough to fully replace the native cursor. */
+body,
+a,
+button,
+[role="button"] {
+  cursor: none;
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+}
+
+/* All HTML sections must sit above the fixed 3D canvas (Scene.tsx, an
+   unstyled z-index-auto fixed element). `main` already carries z-10, but
+   sections apply this directly too so stacking doesn't depend on that
+   wrapper staying in place. */
+.section-content {
+  position: relative;
+  z-index: 10;
+}
+
+/* Touch devices have no real cursor to replace — fall back to the native one. */
+@media (pointer: coarse) {
+  body,
+  a,
+  button,
+  [role="button"] {
+    cursor: auto;
+  }
+
+  .cursor-follower {
+    display: none !important;
+  }
 }
